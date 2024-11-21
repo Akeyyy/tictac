@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            justify-content: center;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            border: 1px solid #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .cell.taken {
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tic Tac Toe</h1>
+    <div id="board"></div>
+    <p id="status">Waiting for opponent...</p>
+    <script>
+        const board = document.getElementById('board');
+        const status = document.getElementById('status');
+        const cells = Array(9).fill(null).map((_, index) => {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.dataset.index = index;
+            board.appendChild(cell);
+            return cell;
+        });
+
+        const socket = new WebSocket('ws://localhost:8080');
+        let player;
+        let isMyTurn = false;
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'assign') {
+                player = data.player;
+                status.textContent = `You are Player ${player + 1}`;
+            } else if (data.type === 'start') {
+                isMyTurn = player === 0;
+                updateStatus();
+            } else if (data.type === 'move') {
+                cells[data.index].textContent = data.player === 0 ? 'X' : 'O';
+                cells[data.index].classList.add('taken');
+                isMyTurn = data.player !== player;
+                updateStatus();
+            } else if (data.type === 'winner') {
+                status.textContent = `Player ${data.player + 1} wins!`;
+            } else if (data.type === 'draw') {
+                status.textContent = 'It\'s a draw!';
+            } else if (data.type === 'reset') {
+                resetBoard();
+                status.textContent = 'Game reset. Waiting for opponent...';
+            }
+        };
+
+        cells.forEach((cell) => {
+            cell.addEventListener('click', () => {
+                if (!cell.textContent && isMyTurn) {
+                    socket.send(JSON.stringify({ type: 'move', index: cell.dataset.index }));
+                }
+            });
+        });
+
+        function updateStatus() {
+            status.textContent = isMyTurn ? 'Your turn' : 'Opponent\'s turn';
+        }
+
+        function resetBoard() {
+            cells.forEach((cell) => {
+                cell.textContent = '';
+                cell.classList.remove('taken');
+            });
+        }
+    </script>
+</body>
+</html>
